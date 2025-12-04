@@ -24,6 +24,7 @@ func main() {
 		engine.NewRandomTrader("trader-1", []string{"FOO", "BAR"}, random_seed),
 		engine.NewRandomTrader("trader-2", []string{"FOO"}, random_seed),
 		engine.NewRandomTrader("trader-3", []string{"FOO", "BAR"}, random_seed),
+		engine.NewRandomTrader("trader-4", []string{"FOO", "BAR"}, random_seed),
 	}
 
 	// Simple sanity check: ensure we have at least one trader.
