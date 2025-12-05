@@ -3,15 +3,13 @@ package main
 import (
 	"log"
 	"math/rand"
+	"strconv"
 
 	// Replace "yourmodule" with the module path from your go.mod.
 	"github.com/zappabad/stockcraft/internal/engine"
 )
 
 func main() {
-	// Seed RNG once at startup for the random traders.
-	random_seed := rand.New(rand.NewSource(420)) // for reproducibility during testing
-
 	// 1. Create a basic market.
 	market := engine.NewMarket()
 
@@ -20,11 +18,13 @@ func main() {
 
 	// 3. Create some traders.
 	// TODO: Replace these with real strategy types (frequent, swing, news-based).
-	traders := []engine.Trader{
-		engine.NewRandomTrader("trader-1", []string{"FOO", "BAR"}, random_seed),
-		engine.NewRandomTrader("trader-2", []string{"FOO"}, random_seed),
-		engine.NewRandomTrader("trader-3", []string{"FOO", "BAR"}, random_seed),
-		engine.NewRandomTrader("trader-4", []string{"FOO", "BAR"}, random_seed),
+	total_traders := 500
+	traders := []engine.Trader{}
+
+	for i := range total_traders {
+		traderID := "trader-" + strconv.Itoa(i)
+		traderSeed := rand.New(rand.NewSource(int64(i + 69420)))
+		traders = append(traders, engine.NewRandomTrader(traderID, []string{"BAR"}, traderSeed))
 	}
 
 	// Simple sanity check: ensure we have at least one trader.
@@ -32,10 +32,13 @@ func main() {
 		log.Fatal("no traders configured")
 	}
 
+	// 4. Generate News Engine
+	newsEngine := engine.NewNewsEngine()
+
 	// 4. Wire everything into a simulation.
-	sim := engine.NewSimulation(market, orderBook, traders)
+	sim := engine.NewSimulation(market, orderBook, traders, newsEngine)
 
 	// 5. Run for a few ticks and watch console output.
 	// TODO: Make this configurable via flags or environment.
-	sim.Run(10)
+	sim.Run(100)
 }

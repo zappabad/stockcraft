@@ -1,7 +1,5 @@
 package engine
 
-import "fmt"
-
 // OrderBook is a placeholder for the matching engine.
 // For now it just stores orders and naively updates Market prices.
 //
@@ -33,10 +31,10 @@ func (ob *OrderBook) ApplyOrders(orders []Order, m *Market) {
 		// Naive "last trade wins" price update.
 		m.SetPrice(o.Symbol, o.Price)
 
-		fmt.Printf(
-			"Applied order: trader=%s symbol=%s side=%v qty=%d price=%.2f\n",
-			o.TraderID, o.Symbol, o.Side, o.Quantity, o.Price,
-		)
+		// fmt.Printf(
+		// 	"Applied order: trader=%s symbol=%s side=%v qty=%d price=%.2f\n",
+		// 	o.TraderID, o.Symbol, o.Side, o.Quantity, o.Price,
+		// )
 	}
 }
 

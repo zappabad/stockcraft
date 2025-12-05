@@ -5,18 +5,20 @@ import "fmt"
 // Simulation stitches together Market, Traders, and OrderBook.
 // This is where your "game loop" lives.
 type Simulation struct {
-	Market    Market
-	OrderBook *OrderBook
-	Traders   []Trader
-	TickCount int
+	Market     Market
+	OrderBook  *OrderBook
+	Traders    []Trader
+	NewsEngine *NewsEngine
+	TickCount  int
 }
 
 // NewSimulation wires up a new Simulation.
-func NewSimulation(m Market, ob *OrderBook, traders []Trader) *Simulation {
+func NewSimulation(m Market, ob *OrderBook, traders []Trader, ne *NewsEngine) *Simulation {
 	return &Simulation{
-		Market:    m,
-		OrderBook: ob,
-		Traders:   traders,
+		Market:     m,
+		OrderBook:  ob,
+		Traders:    traders,
+		NewsEngine: ne,
 	}
 }
 
@@ -41,6 +43,11 @@ func (s *Simulation) Step() {
 	if len(allOrders) == 0 {
 		fmt.Println("No orders this tick.")
 		return
+	}
+
+	news := s.NewsEngine.GenerateNews(s.TickCount)
+	if news != nil {
+		fmt.Printf("News: %s\n", news.Headline)
 	}
 
 	s.OrderBook.ApplyOrders(allOrders, &s.Market)
