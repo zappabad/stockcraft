@@ -23,7 +23,8 @@ type Order struct {
 // Market holds current prices for each symbol.
 // For the first prototype, this is just a simple map you mutate.
 type Market struct {
-	Prices map[string]float64
+	Prices  map[string]float64
+	Symbols []string // Ordered list of symbols for deterministic iteration
 }
 
 // NewMarket creates a basic market with some starter prices.
@@ -33,6 +34,8 @@ func NewMarket() Market {
 			"FOO": 100.0,
 			"BAR": 50.0,
 		},
+		// Define deterministic order for symbols
+		Symbols: []string{"FOO", "BAR"},
 	}
 }
 
@@ -46,6 +49,11 @@ func (m Market) GetPrice(symbol string) float64 {
 		return 0
 	}
 	return price
+}
+
+// GetOrderedSymbols returns symbols in deterministic order
+func (m Market) GetOrderedSymbols() []string {
+	return m.Symbols
 }
 
 // SetPrice sets the current price for a symbol.
