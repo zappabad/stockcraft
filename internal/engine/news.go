@@ -11,9 +11,9 @@ type SymbolImpact struct {
 }
 
 type News struct {
-	ID       string
-	Headline string
-	Symbols  []SymbolImpact
+	ID            string
+	Headline      string
+	SymbolImpacts []SymbolImpact
 }
 
 type NewsEngine struct {
@@ -33,7 +33,7 @@ func (ne *NewsEngine) GenerateNews(tick int) *News {
 		news := News{
 			ID:       fmt.Sprintf("news-%d", tick),
 			Headline: fmt.Sprintf("Breaking News at tick %d!", tick),
-			Symbols: []SymbolImpact{
+			SymbolImpacts: []SymbolImpact{
 				{Symbol: "FOO", Impact: 0.05 * float64(impact_sign)},
 				{Symbol: "BAR", Impact: -0.05 * float64(impact_sign)},
 			},
