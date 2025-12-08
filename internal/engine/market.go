@@ -9,17 +9,6 @@ const (
 	SideSell Side = 2
 )
 
-// Order is the basic unit sent by traders to the order book.
-// This is deliberately minimal; you'll likely add fields later:
-// time-in-force, order type, etc.
-type Order struct {
-	TraderID string  // who sent the order
-	Symbol   string  // instrument symbol, e.g. "AAPL"
-	Side     Side    // buy or sell
-	Quantity int     // number of units
-	Price    float64 // limit price; for now treat everything as limit orders
-}
-
 // Market holds current prices for each symbol.
 // For the first prototype, this is just a simple map you mutate.
 type Market struct {

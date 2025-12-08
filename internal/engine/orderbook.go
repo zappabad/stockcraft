@@ -1,30 +1,55 @@
 package engine
 
-// OrderBook is a placeholder for the matching engine.
-// For now it just stores orders and naively updates Market prices.
-//
-// TODO:
-//   - Implement a real bid/ask book per symbol.
-//   - Match orders (price-time priority).
-//   - Output trades, PnL, etc.
+import "time"
+
+// Order is the basic unit sent by traders to the order book.
+// time-in-force, order type, etc.
+type OrderID string
+
+type Order struct {
+	ID		  OrderID   // unique identifier
+	Timestamp time.Time // when the order was created
+	TraderID  string    // who sent the order
+	Symbol    string    // instrument symbol, e.g. "AAPL"
+	Side      Side      // buy or sell
+	Quantity  int       // number of units
+	Price     float64   // limit price; for now treat everything as limit orders
+}
+
+// TODO: Add comments on what this actually is after removing placeholder
+type SideBook struct {
+	levels map[float64][]*Order // map of price to list of orders at that price
+	prices []float64          	// sorted list of prices for quick access
+}
+
 type OrderBook struct {
-	orders []Order
+	Symbol  string
+	Bids   SideBook 		  // buy side
+	Asks   SideBook 		  // sell side
+	byID   map[OrderID]*Order // for cancel/replace TODO: (idk what this means replace it)
 }
 
 // NewOrderBook constructs an empty order book.
 func NewOrderBook() *OrderBook {
 	return &OrderBook{
-		orders: make([]Order, 0),
+		Bids: SideBook{
+			levels: make(map[float64][]*Order),
+			prices: []float64{},
+		},
+		Asks: SideBook{
+			levels: make(map[float64][]*Order),
+			prices: []float64{},
+		},
 	}
 }
 
-// ApplyOrders takes a batch of new orders for a single tick.
-// Right now it:
-//   - Appends them to the in-memory slice.
-//   - Updates the market price to the last order price per symbol.
-//
-// This is just to make the system visibly "do something".
-func (ob *OrderBook) ApplyOrders(orders []Order, m *Market) {
+func (ob *OrderBook) AddOrder(order *Order) (trades []Trade, resting *Order, err error) {
+	// TODO: implement order matching logic
+	return nil, nil, nil
+}
+
+// TODO: better comments
+func (ob *OrderBook) AddOrders(orders []Order, m *Market) {
 	for _, o := range orders {
 		ob.orders = append(ob.orders, o)
 
@@ -37,6 +62,8 @@ func (ob *OrderBook) ApplyOrders(orders []Order, m *Market) {
 		// )
 	}
 }
+
+func (ob *OrderBook) OrderMatching() []Order {
 
 // SnapshotOrders returns a copy of the internal orders slice.
 //
