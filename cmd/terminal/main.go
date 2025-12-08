@@ -42,7 +42,7 @@ func main() {
 		traderID := "trader-" + strconv.Itoa(i)
 		traderSeed := rand.New(rand.NewSource(int64(i + 69420)))
 		// Use both FOO and BAR symbols for more interesting trading
-		traders = append(traders, engine.NewRandomTrader(traderID, []string{"FOO", "BAR"}, traderSeed))
+		traders = append(traders, engine.NewRandomTrader(traderID, []string{"FOO", "BAR", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "BRK.A", "NVDA", "JPM", "V", "JNJ", "WMT", "PG", "DIS"}, traderSeed))
 	}
 
 	// Simple sanity check: ensure we have at least one trader.

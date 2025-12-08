@@ -42,7 +42,11 @@ func NewOrderEntryWidget() *OrderEntryWidget {
 }
 
 func (w *OrderEntryWidget) Update(event UIEvent) bool {
-	// This widget doesn't update from simulation events
+	// Handle stock selection events to auto-populate symbol field
+	if stockEvent, ok := event.(StockSelectionEvent); ok {
+		w.symbol = stockEvent.Symbol
+		return true
+	}
 	return false
 }
 
@@ -52,6 +56,10 @@ func (w *OrderEntryWidget) HandleKey(key string) {
 	case "tab":
 		w.nextField()
 	case "shift+tab":
+		w.prevField()
+	case "down", "right":
+		w.nextField()
+	case "up", "left":
 		w.prevField()
 	case "enter":
 		w.submitOrder()

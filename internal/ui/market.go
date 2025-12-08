@@ -10,19 +10,23 @@ import (
 // MarketWidget displays live stock prices with color-coded changes
 type MarketWidget struct {
 	BaseWidget
-	prices     map[string]float64
-	prevPrices map[string]float64
-	changes    map[string]float64
-	lastTick   int
+	prices        map[string]float64
+	prevPrices    map[string]float64
+	changes       map[string]float64
+	lastTick      int
+	selectedStock string
+	channels      *UIChannels // for publishing selection changes
 }
 
-func NewMarketWidget() *MarketWidget {
+func NewMarketWidget(channels *UIChannels) *MarketWidget {
 	return &MarketWidget{
-		BaseWidget: NewBaseWidget(),
-		prices:     make(map[string]float64),
-		prevPrices: make(map[string]float64),
-		changes:    make(map[string]float64),
-		lastTick:   0,
+		BaseWidget:    NewBaseWidget(),
+		prices:        make(map[string]float64),
+		prevPrices:    make(map[string]float64),
+		changes:       make(map[string]float64),
+		lastTick:      0,
+		selectedStock: "FOO", // Default selection
+		channels:      channels,
 	}
 }
 
@@ -55,6 +59,81 @@ func (w *MarketWidget) Update(event UIEvent) bool {
 	return false
 }
 
+// HandleKey processes keyboard input for stock navigation
+func (w *MarketWidget) HandleKey(key string) {
+	if !w.focused {
+		return
+	}
+
+	// Get available symbols in order
+	orderedSymbols := []string{"FOO", "BAR", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "BRK.A", "NVDA", "JPM", "V", "JNJ", "WMT", "PG", "DIS"}
+
+	// Add any other symbols in alphabetical order
+	var otherSymbols []string
+	for symbol := range w.prices {
+		found := false
+		for _, known := range orderedSymbols {
+			if symbol == known {
+				found = true
+				break
+			}
+		}
+		if !found {
+			otherSymbols = append(otherSymbols, symbol)
+		}
+	}
+
+	// Sort other symbols alphabetically
+	for i := 0; i < len(otherSymbols); i++ {
+		for j := i + 1; j < len(otherSymbols); j++ {
+			if otherSymbols[i] > otherSymbols[j] {
+				otherSymbols[i], otherSymbols[j] = otherSymbols[j], otherSymbols[i]
+			}
+		}
+	}
+
+	allSymbols := append(orderedSymbols, otherSymbols...)
+
+	// Find current selection index
+	currentIndex := -1
+	for i, symbol := range allSymbols {
+		if symbol == w.selectedStock {
+			currentIndex = i
+			break
+		}
+	}
+
+	if currentIndex == -1 && len(allSymbols) > 0 {
+		currentIndex = 0
+		w.selectedStock = allSymbols[0]
+	}
+
+	switch key {
+	case "up":
+		if currentIndex > 0 {
+			w.selectedStock = allSymbols[currentIndex-1]
+			w.publishSelection()
+		}
+	case "down":
+		if currentIndex < len(allSymbols)-1 {
+			w.selectedStock = allSymbols[currentIndex+1]
+			w.publishSelection()
+		}
+	}
+}
+
+// publishSelection sends the current selection to other widgets
+func (w *MarketWidget) publishSelection() {
+	if w.channels != nil {
+		select {
+		case w.channels.StockSelections <- StockSelectionEvent{Symbol: w.selectedStock}:
+			// Selection sent
+		default:
+			// Channel full, drop event
+		}
+	}
+}
+
 func (w *MarketWidget) Render(width, height int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -76,7 +155,7 @@ func (w *MarketWidget) Render(width, height int) string {
 		lines = append(lines, "No market data available")
 	} else {
 		// Use deterministic order - prioritize FOO, then BAR, then alphabetical for any others
-		orderedSymbols := []string{"FOO", "BAR"}
+		orderedSymbols := []string{"FOO", "BAR", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "BRK.A", "NVDA", "JPM", "V", "JNJ", "WMT", "PG", "DIS"}
 
 		// Add any other symbols in alphabetical order
 		var otherSymbols []string
@@ -130,7 +209,15 @@ func (w *MarketWidget) Render(width, height int) string {
 			priceStr := fmt.Sprintf("%-4s $%8.2f", symbol, price)
 			changeDisplay := colorStyle.Render(fmt.Sprintf("(%s)", changeStr))
 
-			lines = append(lines, fmt.Sprintf("%s %s", priceStr, changeDisplay))
+			// Apply selection highlighting
+			line := fmt.Sprintf("%s %s", priceStr, changeDisplay)
+			if symbol == w.selectedStock {
+				// Gray background for selected stock
+				selectionStyle := lipgloss.NewStyle().Background(lipgloss.Color("240"))
+				line = selectionStyle.Render(line)
+			}
+
+			lines = append(lines, line)
 		}
 	}
 

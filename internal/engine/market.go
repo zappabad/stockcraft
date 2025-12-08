@@ -31,11 +31,25 @@ type Market struct {
 func NewMarket() Market {
 	return Market{
 		Prices: map[string]float64{
-			"FOO": 100.0,
-			"BAR": 50.0,
+			// Fill with top 20 market cap stocks for realism
+			"FOO":   150.0,
+			"BAR":   250.0,
+			"AAPL":  175.0,
+			"MSFT":  300.0,
+			"GOOGL": 2800.0,
+			"AMZN":  3400.0,
+			"TSLA":  700.0,
+			"BRK.A": 420000.0,
+			"NVDA":  220.0,
+			"JPM":   160.0,
+			"V":     230.0,
+			"JNJ":   170.0,
+			"WMT":   140.0,
+			"PG":    145.0,
+			"DIS":   180.0,
 		},
 		// Define deterministic order for symbols
-		Symbols: []string{"FOO", "BAR"},
+		Symbols: []string{"FOO", "BAR", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "BRK.A", "NVDA", "JPM", "V", "JNJ", "WMT", "PG", "DIS"},
 	}
 }
 

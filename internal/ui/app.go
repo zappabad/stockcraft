@@ -36,7 +36,7 @@ func NewUIModel(channels *UIChannels) *UIModel {
 	layout := NewLayout()
 
 	// Create widgets
-	marketWidget := NewMarketWidget()
+	marketWidget := NewMarketWidget(channels)
 	newsWidget := NewNewsWidget()
 	orderbookWidget := NewOrderBookWidget()
 	orderentryWidget := NewOrderEntryWidget()
@@ -110,11 +110,15 @@ func (m UIModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		// Pass key to focused widget if it's the order entry widget
+		// Pass key to focused widget
 		widgets := m.layout.GetWidgets()
 		for _, widget := range widgets {
 			if widget.Focused() {
-				if orderWidget, ok := widget.(*OrderEntryWidget); ok {
+				if marketWidget, ok := widget.(*MarketWidget); ok {
+					// Market widget handles arrow keys for stock selection
+					marketWidget.HandleKey(msg.String())
+				} else if orderWidget, ok := widget.(*OrderEntryWidget); ok {
+					// Order entry widget handles all keys including arrows
 					orderWidget.HandleKey(msg.String())
 				}
 				break
@@ -177,6 +181,8 @@ func (m UIModel) listenForEvents() tea.Cmd {
 		case event := <-m.channels.OrderUpdates:
 			return UIUpdateMsg{event: event}
 		case event := <-m.channels.NewsUpdates:
+			return UIUpdateMsg{event: event}
+		case event := <-m.channels.StockSelections:
 			return UIUpdateMsg{event: event}
 		case <-m.channels.Shutdown:
 			return tea.Quit()

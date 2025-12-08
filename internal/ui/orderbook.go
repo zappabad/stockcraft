@@ -14,6 +14,7 @@ type OrderBookWidget struct {
 	recentOrders []engine.Order
 	lastTick     int
 	maxOrders    int
+	filterSymbol string
 }
 
 func NewOrderBookWidget() *OrderBookWidget {
@@ -21,7 +22,8 @@ func NewOrderBookWidget() *OrderBookWidget {
 		BaseWidget:   NewBaseWidget(),
 		recentOrders: make([]engine.Order, 0),
 		lastTick:     0,
-		maxOrders:    15, // Keep last 15 orders
+		maxOrders:    15,    // Keep last 15 orders
+		filterSymbol: "FOO", // Default to FOO
 	}
 }
 
@@ -37,6 +39,10 @@ func (w *OrderBookWidget) Update(event UIEvent) bool {
 
 		w.lastTick = orderEvent.Tick
 		return true
+	} else if stockEvent, ok := event.(StockSelectionEvent); ok {
+		// Update filter symbol when stock selection changes
+		w.filterSymbol = stockEvent.Symbol
+		return true
 	}
 	return false
 }
@@ -51,15 +57,23 @@ func (w *OrderBookWidget) Render(width, height int) string {
 	}
 
 	// Build header
-	header := fmt.Sprintf("Order Flow (Tick: %d)", w.lastTick)
+	header := fmt.Sprintf("Order Flow for %s (Tick: %d)", w.filterSymbol, w.lastTick)
 
 	// Build order display
 	var lines []string
 	lines = append(lines, header)
 	lines = append(lines, strings.Repeat("─", len(header)))
 
-	if len(w.recentOrders) == 0 {
-		lines = append(lines, "No orders available")
+	// Filter orders for selected symbol
+	var filteredOrders []engine.Order
+	for _, order := range w.recentOrders {
+		if order.Symbol == w.filterSymbol {
+			filteredOrders = append(filteredOrders, order)
+		}
+	}
+
+	if len(filteredOrders) == 0 {
+		lines = append(lines, fmt.Sprintf("No orders for %s", w.filterSymbol))
 	} else {
 		// Column headers
 		lines = append(lines, fmt.Sprintf("%-8s %-4s %-4s %6s %8s", "Trader", "Symb", "Side", "Qty", "Price"))
@@ -71,14 +85,14 @@ func (w *OrderBookWidget) Render(width, height int) string {
 			availableLines = 1
 		}
 
-		// Show recent orders (newest first), but only what fits
-		displayCount := len(w.recentOrders)
+		// Show recent filtered orders (newest first), but only what fits
+		displayCount := len(filteredOrders)
 		if displayCount > availableLines {
 			displayCount = availableLines
 		}
 
-		for i := len(w.recentOrders) - 1; i >= len(w.recentOrders)-displayCount; i-- {
-			order := w.recentOrders[i]
+		for i := len(filteredOrders) - 1; i >= len(filteredOrders)-displayCount; i-- {
+			order := filteredOrders[i]
 
 			// Truncate trader ID for display
 			traderDisplay := order.TraderID

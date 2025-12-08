@@ -66,9 +66,7 @@ func copyMap(original map[string]float64) map[string]float64 {
 }
 
 func copyOrders(original []engine.Order) []engine.Order {
-	copy := make([]engine.Order, len(original))
-	copy = append(copy, original...)
-	return copy
+	return append([]engine.Order{}, original...)
 }
 
 func copyNews(original *engine.News) *engine.News {

@@ -36,12 +36,20 @@ type NewsUpdateEvent struct {
 
 func (e NewsUpdateEvent) Type() string { return "news_update" }
 
+// StockSelectionEvent contains selected stock symbol for filtering
+type StockSelectionEvent struct {
+	Symbol string
+}
+
+func (e StockSelectionEvent) Type() string { return "stock_selection" }
+
 // UIChannels holds all communication channels between simulation and UI
 type UIChannels struct {
-	MarketUpdates chan MarketUpdateEvent
-	OrderUpdates  chan OrderUpdateEvent
-	NewsUpdates   chan NewsUpdateEvent
-	Shutdown      chan struct{}
+	MarketUpdates   chan MarketUpdateEvent
+	OrderUpdates    chan OrderUpdateEvent
+	NewsUpdates     chan NewsUpdateEvent
+	StockSelections chan StockSelectionEvent
+	Shutdown        chan struct{}
 }
 
 // NewUIChannels creates channels with appropriate buffer sizes for 20ms ticks
@@ -52,7 +60,9 @@ func NewUIChannels() *UIChannels {
 		OrderUpdates:  make(chan OrderUpdateEvent, 50),
 		// 10 capacity for news (lower frequency)
 		NewsUpdates: make(chan NewsUpdateEvent, 10),
-		Shutdown:    make(chan struct{}),
+		// Small buffer for stock selections (user interaction)
+		StockSelections: make(chan StockSelectionEvent, 5),
+		Shutdown:        make(chan struct{}),
 	}
 }
 
