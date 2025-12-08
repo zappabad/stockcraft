@@ -1,6 +1,9 @@
 package engine
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Order is the basic unit sent by traders to the order book.
 // time-in-force, order type, etc.
@@ -43,23 +46,86 @@ func NewOrderBook() *OrderBook {
 	}
 }
 
-func (ob *OrderBook) AddOrder(order *Order) (trades []Trade, resting *Order, err error) {
-	// TODO: implement order matching logic
+// AddOrder adds a single order to the order book and attempts to match it.
+// Returns any trades that occurred, the remaining order (also called a remainder, if any), and an error.
+func (ob *OrderBook) AddOrder(o *Order) ([]Trade, *Order, error) {
+    if o.Symbol != ob.Symbol {
+        return nil, nil, fmt.Errorf("symbol mismatch")
+    }
+
+    switch o.Side {
+    case Buy:
+        return ob.addBuy(o)
+    case Sell:
+        return ob.addSell(o)
+    default:
+        return nil, nil, fmt.Errorf("unknown side")
+    }
+}
+
+func (ob *OrderBook) addBuy(o *Order) ([]Trade, *Order, error) {
+	ob.Bids.levels[o.Price] = append(ob.Bids.levels[o.Price], o)
 	return nil, nil, nil
 }
 
+func (ob *OrderBook) addSell(o *Order) ([]Trade, *Order, error) {
+	ob.Asks.levels[o.Price] = append(ob.Asks.levels[o.Price], o)
+	return nil, nil, nil
+}
+
+func (ob *OrderBook) CheckTrade(o *Order) []Trade {
+	if o.Side == Buy {
+		for price := range ob.Asks.levels {
+			if o.Price >= price {
+				return true
+			}
+		}	
+}
+
+
+// TODO:  implement matching logic correctly.
+func MatchOrders(ob *OrderBook) []Trade {
+	var trades []Trade
+	// Implement matching logic here using FIFO within price levels
+	for price, buyOrders := range ob.Bids.levels {
+		sellOrders, exists := ob.Asks.levels[price]
+		if !exists {
+			continue
+		}
+		buyIndex, sellIndex := 0, 0
+		for buyIndex < len(buyOrders) && sellIndex < len(sellOrders) {
+			buyOrder := buyOrders[buyIndex]
+			sellOrder := sellOrders[sellIndex]
+			tradeQty := min(buyOrder.Quantity, sellOrder.Quantity)
+			trades = append(trades, Trade{
+				BuyOrderID:  buyOrder.ID,
+				SellOrderID: sellOrder.ID,
+				Quantity:    tradeQty,
+				Price:       price,
+			})
+			buyOrder.Quantity -= tradeQty
+			sellOrder.Quantity -= tradeQty
+			if buyOrder.Quantity == 0 {
+				buyIndex++
+			}
+			if sellOrder.Quantity == 0 {
+				sellIndex++
+			}
+		}
+		// Remove filled orders
+		ob.Bids.levels[price] = buyOrders[buyIndex:]
+		ob.Asks.levels[price] = sellOrders[sellIndex:]
+	}
+
+	return trades
+}	
 // TODO: better comments
 func (ob *OrderBook) AddOrders(orders []Order, m *Market) {
 	for _, o := range orders {
-		ob.orders = append(ob.orders, o)
-
-		// Naive "last trade wins" price update.
-		m.SetPrice(o.Symbol, o.Price)
-
-		// fmt.Printf(
-		// 	"Applied order: trader=%s symbol=%s side=%v qty=%d price=%.2f\n",
-		// 	o.TraderID, o.Symbol, o.Side, o.Quantity, o.Price,
-		// )
+		_, _, err := ob.AddOrder(&o)
+		if err != nil {
+			fmt.Printf("Error adding order %s: %v\n", o.ID, err)
+		}
 	}
 }
 

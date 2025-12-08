@@ -9,6 +9,13 @@ const (
 	SideSell Side = 2
 )
 
+type Trade struct {
+	BuyOrderID  OrderID
+	SellOrderID OrderID
+	Quantity    int
+	Price       float64
+}
+
 // Market holds current prices for each symbol.
 // For the first prototype, this is just a simple map you mutate.
 type Market struct {
