@@ -48,9 +48,9 @@ func (t *RandomTrader) Tick(m Market) []Order {
 
 	symbol := t.symbols[t.seed.Intn(len(t.symbols))]
 
-	side := SideBuy
+	side := BuySide
 	if t.seed.Float64() < 0.5 {
-		side = SideSell
+		side = SellSide
 	}
 
 	basePrice := m.GetPrice(symbol)
