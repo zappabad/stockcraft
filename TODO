@@ -1,2 +1,1 @@
-add seed as a global variable and pass it to every instance of generated randomness.
-(need to make sure this is concurrent-safe)
+add a Ticker type to every Orderbook and order in orderbook.go
