@@ -6,17 +6,15 @@ import "fmt"
 // This is where your "game loop" lives.
 type Simulation struct {
 	Market     Market
-	Orderbook  *Orderbook
 	Traders    []Trader
 	NewsEngine *NewsEngine
 	TickCount  int
 }
 
 // NewSimulation wires up a new Simulation.
-func NewSimulation(m Market, ob *Orderbook, traders []Trader, ne *NewsEngine) *Simulation {
+func NewSimulation(m Market, traders []Trader, ne *NewsEngine) *Simulation {
 	return &Simulation{
 		Market:     m,
-		Orderbook:  ob,
 		Traders:    traders,
 		NewsEngine: ne,
 	}

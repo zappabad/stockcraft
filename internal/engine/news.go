@@ -7,7 +7,6 @@ import (
 
 type (
 	TopicID  string
-	Ticker   string
 	Headline string
 	Content  string
 
