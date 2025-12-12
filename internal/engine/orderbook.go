@@ -1,348 +1,580 @@
 package engine
 
 import (
-	"fmt"
-	"math/rand"
-	"sort"
+	"container/heap"
+	"errors"
 	"sync"
 	"time"
 )
 
-type (
-	Trade struct {
-		Price     float64
-		Size      float64
-		Bid       bool
-		Timestamp int64
-	}
+// -----------------------------------------------------------------------------
+// Core types
+// -----------------------------------------------------------------------------
 
-	Match struct {
-		Ask        *Order
-		Bid        *Order
-		Sizefilled float64
-		Price      float64
-	}
+type Side uint8
 
-	Order struct {
-		ID        int64
-		UserID    int64
-		Size      float64
-		Bid       bool
-		Limit     *Limit //pointer to the limit level the order belongs to
-		Timestamp int64
-	}
-
-	Orders []*Order
-
-	Limit struct {
-		Price       float64
-		Orders      Orders
-		TotalVolume float64
-	}
-
-	Limits []*Limit
-
-	ByBestAsk struct{ Limits }
-
-	ByBestBid struct{ Limits }
-
-	Orderbook struct {
-		asks []*Limit
-		bids []*Limit
-
-		Trades []*Trade
-
-		mu        sync.RWMutex
-		AskLimits map[float64]*Limit
-		BidLimits map[float64]*Limit
-		Orders    map[int64]*Order
-	}
+const (
+	SideBuy Side = iota
+	SideSell
 )
 
-// sorting in increasing order
-// oldest order has the smallest timestamp
-// oldest order at the same price level has the highest priority.
-func (o Orders) Len() int           { return len(o) }
-func (o Orders) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
-func (o Orders) Less(i, j int) bool { return o[i].Timestamp < o[j].Timestamp }
-
-func NewOrder(bid bool, size float64, userID int64) *Order {
-
-	return &Order{
-		ID:        int64(rand.Intn(100000000)),
-		UserID:    userID,
-		Size:      size,
-		Bid:       bid,
-		Timestamp: time.Now().UnixNano(),
+func (s Side) String() string {
+	switch s {
+	case SideBuy:
+		return "BUY"
+	case SideSell:
+		return "SELL"
+	default:
+		return "UNKNOWN"
 	}
 }
 
-func (o *Order) String() string {
-	return fmt.Sprintf("[size: %.2f] | [id: %d]", o.Size, o.ID)
-}
+type OrderKind uint8
 
-func (o *Order) Type() string {
-	if o.Bid {
-		return "BID"
-	}
-	return "ASK"
+const (
+	OrderKindLimit OrderKind = iota
+	OrderKindMarket
+)
+
+type Order struct {
+	ID     int64
+	UserID int64
+	Side   Side
+	Kind   OrderKind
+	Price  float64 // limit price (ignored for pure market)
+	Size   float64 // remaining size
+	Time   int64   // UnixNano
+
+	// internal links for FIFO queue per level
+	level *level
+	prev  *Order
+	next  *Order
 }
 
 func (o *Order) IsFilled() bool {
-	return o.Size == 0.0
+	return o.Size <= 0
 }
 
-// sorting in increasing order
-// best ask price (for buyers) is the smallest
-func (a ByBestAsk) Len() int      { return len(a.Limits) }
-func (a ByBestAsk) Swap(i, j int) { a.Limits[i], a.Limits[j] = a.Limits[j], a.Limits[i] }
+type Match struct {
+	Bid        *Order
+	Ask        *Order
+	Price      float64
+	SizeFilled float64
+}
 
-// Less reports whether x[i] should be ordered before x[j], as required by the sort Interface.
-func (a ByBestAsk) Less(i, j int) bool { return a.Limits[i].Price < a.Limits[j].Price }
+type Trade struct {
+	Price     float64
+	Size      float64
+	TakerSide Side
+	Time      int64
+}
 
-// sorting in decreasing order
-// best bid price (for sellers) is the highest
-func (b ByBestBid) Len() int           { return len(b.Limits) }
-func (b ByBestBid) Swap(i, j int)      { b.Limits[i], b.Limits[j] = b.Limits[j], b.Limits[i] }
-func (b ByBestBid) Less(i, j int) bool { return b.Limits[i].Price > b.Limits[j].Price }
+// -----------------------------------------------------------------------------
+// Price level + FIFO queue
+// -----------------------------------------------------------------------------
 
-func NewLimit(price float64) *Limit {
-	return &Limit{
-		Price:  price,
-		Orders: []*Order{},
+type level struct {
+	Price       float64
+	head, tail  *Order
+	TotalVolume float64
+}
+
+// append order at tail (does NOT change TotalVolume)
+func (l *level) appendOrder(o *Order) {
+	o.level = l
+	o.prev = l.tail
+	o.next = nil
+
+	if l.tail != nil {
+		l.tail.next = o
+	} else {
+		l.head = o
+	}
+	l.tail = o
+}
+
+// pop head order (does NOT change TotalVolume)
+func (l *level) popHead() *Order {
+	o := l.head
+	if o == nil {
+		return nil
+	}
+	next := o.next
+	l.head = next
+	if next != nil {
+		next.prev = nil
+	} else {
+		l.tail = nil
+	}
+	o.prev = nil
+	o.next = nil
+	o.level = nil
+	return o
+}
+
+// unlink specific order from list (does NOT change TotalVolume)
+func (l *level) unlinkOrder(o *Order) {
+	if o.prev != nil {
+		o.prev.next = o.next
+	} else {
+		l.head = o.next
+	}
+	if o.next != nil {
+		o.next.prev = o.prev
+	} else {
+		l.tail = o.prev
+	}
+	o.prev = nil
+	o.next = nil
+	o.level = nil
+}
+
+// -----------------------------------------------------------------------------
+// Heap of price levels
+// -----------------------------------------------------------------------------
+
+type levelHeap struct {
+	data  []*level
+	index map[*level]int // level -> index in heap.data
+	isBid bool           // true => max-heap by price; false => min-heap by price
+}
+
+func newLevelHeap(isBid bool) *levelHeap {
+	h := &levelHeap{
+		data:  []*level{},
+		index: make(map[*level]int),
+		isBid: isBid,
+	}
+	heap.Init(h)
+	return h
+}
+
+func (h *levelHeap) Len() int { return len(h.data) }
+
+func (h *levelHeap) Less(i, j int) bool {
+	if h.isBid {
+		// max-heap: highest price has priority
+		return h.data[i].Price > h.data[j].Price
+	}
+	// min-heap: lowest price has priority
+	return h.data[i].Price < h.data[j].Price
+}
+
+func (h *levelHeap) Swap(i, j int) {
+	h.data[i], h.data[j] = h.data[j], h.data[i]
+	h.index[h.data[i]] = i
+	h.index[h.data[j]] = j
+}
+
+func (h *levelHeap) Push(x interface{}) {
+	l := x.(*level)
+	h.data = append(h.data, l)
+	h.index[l] = len(h.data) - 1
+}
+
+func (h *levelHeap) Pop() interface{} {
+	n := len(h.data)
+	if n == 0 {
+		return nil
+	}
+	l := h.data[n-1]
+	h.data = h.data[:n-1]
+	delete(h.index, l)
+	return l
+}
+
+// remove arbitrary level from heap
+func (h *levelHeap) removeLevel(l *level) {
+	i, ok := h.index[l]
+	if !ok {
+		return
+	}
+	heap.Remove(h, i)
+}
+
+func (h *levelHeap) bestLevel() *level {
+	if len(h.data) == 0 {
+		return nil
+	}
+	return h.data[0]
+}
+
+// -----------------------------------------------------------------------------
+// BookSide: one side of the book (bids or asks)
+// -----------------------------------------------------------------------------
+
+type bookSide struct {
+	isBid  bool
+	levels map[float64]*level // price → level
+	lheap  *levelHeap
+}
+
+func newBookSide(isBid bool) *bookSide {
+	return &bookSide{
+		isBid:  isBid,
+		levels: make(map[float64]*level),
+		lheap:  newLevelHeap(isBid),
 	}
 }
 
-func (l *Limit) AddOrder(o *Order) {
-	o.Limit = l
-	l.Orders = append(l.Orders, o)
+func (bs *bookSide) bestLevel() *level {
+	return bs.lheap.bestLevel()
+}
+
+func (bs *bookSide) getOrCreateLevel(price float64) *level {
+	if l, ok := bs.levels[price]; ok {
+		return l
+	}
+	l := &level{Price: price}
+	bs.levels[price] = l
+	heap.Push(bs.lheap, l)
+	return l
+}
+
+func (bs *bookSide) removeLevel(l *level) {
+	delete(bs.levels, l.Price)
+	bs.lheap.removeLevel(l)
+}
+
+func (bs *bookSide) addRestingOrder(o *Order) {
+	l := bs.getOrCreateLevel(o.Price)
+	l.appendOrder(o)
 	l.TotalVolume += o.Size
 }
 
-func (l *Limit) DeleteOrder(o *Order) {
-	for i := 0; i < len(l.Orders); i++ {
-		if l.Orders[i] == o {
-			l.Orders[i] = l.Orders[len(l.Orders)-1]
-			l.Orders = l.Orders[:len(l.Orders)-1]
-		}
+// cancel a resting order (assumes it is resting)
+func (bs *bookSide) cancelRestingOrder(o *Order) {
+	l := o.level
+	if l == nil {
+		return
 	}
-
-	o.Limit = nil
+	// adjust volume before unlinking
 	l.TotalVolume -= o.Size
+	l.unlinkOrder(o)
 
-	//sort the remaining orders
-	sort.Sort(l.Orders)
-}
-
-func (l *Limit) Fill(o *Order) []Match {
-	var (
-		matches        []Match
-		ordersToDelete []*Order
-	)
-
-	for _, order := range l.Orders {
-		if o.IsFilled() {
-			break
-		}
-		match := l.fillOrder(order, o)
-		matches = append(matches, match)
-
-		l.TotalVolume -= match.Sizefilled
-
-		if order.IsFilled() {
-			ordersToDelete = append(ordersToDelete, order)
-		}
-
-	}
-
-	for _, order := range ordersToDelete {
-		l.DeleteOrder(order)
-	}
-
-	return matches
-}
-
-func (l *Limit) fillOrder(a, b *Order) Match {
-	var (
-		bid        *Order
-		ask        *Order
-		sizeFilled float64
-	)
-
-	if a.Bid {
-		bid = a
-		ask = b
-	} else {
-		bid = b
-		ask = a
-	}
-
-	if a.Size >= b.Size {
-		a.Size -= b.Size
-		sizeFilled = b.Size
-		b.Size = 0.0
-	} else {
-		b.Size -= a.Size
-		sizeFilled = a.Size
-		a.Size = 0.0
-	}
-
-	return Match{
-		Bid:        bid,
-		Ask:        ask,
-		Sizefilled: sizeFilled,
-		Price:      l.Price,
+	if l.TotalVolume <= 0 || l.head == nil {
+		bs.removeLevel(l)
 	}
 }
 
-func NewOrderbook() *Orderbook {
-	return &Orderbook{
-		asks:      []*Limit{},
-		bids:      []*Limit{},
-		Trades:    []*Trade{},
-		AskLimits: make(map[float64]*Limit),
-		BidLimits: make(map[float64]*Limit),
-		Orders:    make(map[int64]*Order),
+// -----------------------------------------------------------------------------
+// OrderBook: full book, both sides
+// -----------------------------------------------------------------------------
+
+type OrderBook struct {
+	bids *bookSide
+	asks *bookSide
+
+	orders map[int64]*Order // ID → Order
+	trades []*Trade
+
+	mu sync.RWMutex
+}
+
+func NewOrderBook() *OrderBook {
+	return &OrderBook{
+		bids:   newBookSide(true),
+		asks:   newBookSide(false),
+		orders: make(map[int64]*Order),
+		trades: []*Trade{},
 	}
 }
 
-func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
-	ob.mu.Lock()
-	defer ob.mu.Unlock()
+// -----------------------------------------------------------------------------
+// Order factories (for trader code)
+// -----------------------------------------------------------------------------
 
-	matches := []Match{}
+func now() int64 { return time.Now().UnixNano() }
 
-	if o.Bid {
-		if o.Size > ob.AskTotalVolume() {
-			panic(fmt.Errorf("not enough ask volume [size: %.2f] for bid market order [size: %.2f]", ob.AskTotalVolume(), o.Size))
-		}
-		for _, limit := range ob.Asks() {
-			limitMatches := limit.Fill(o)
-			matches = append(matches, limitMatches...)
-
-			if len(limit.Orders) == 0 {
-				ob.clearLimit(false, limit)
-			}
-
-		}
-	} else {
-		if o.Size > ob.BidTotalVolume() {
-			panic(fmt.Errorf("not enough bid volume [size: %.2f] for ask market order [size: %.2f]", ob.BidTotalVolume(), o.Size))
-		}
-		for _, limit := range ob.Bids() {
-			limitMatches := limit.Fill(o)
-			matches = append(matches, limitMatches...)
-
-			if len(limit.Orders) == 0 {
-				ob.clearLimit(true, limit)
-			}
-		}
+func NewLimitOrder(id, userID int64, side Side, price, size float64) *Order {
+	return &Order{
+		ID:     id,
+		UserID: userID,
+		Side:   side,
+		Kind:   OrderKindLimit,
+		Price:  price,
+		Size:   size,
+		Time:   now(),
 	}
-
-	for _, match := range matches {
-		trade := &Trade{
-			Price:     match.Price,
-			Size:      match.Sizefilled,
-			Timestamp: time.Now().UnixNano(),
-			Bid:       o.Bid,
-		}
-		ob.Trades = append(ob.Trades, trade)
-
-	}
-
-	// TODO: add logging
-
-	return matches
 }
 
-func (ob *Orderbook) PlaceLimitOrder(price float64, o *Order) {
-	var limit *Limit
+func NewMarketOrder(id, userID int64, side Side, size float64) *Order {
+	return &Order{
+		ID:     id,
+		UserID: userID,
+		Side:   side,
+		Kind:   OrderKindMarket,
+		Price:  0,
+		Size:   size,
+		Time:   now(),
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Public API: submit / cancel / query
+// -----------------------------------------------------------------------------
+
+// SubmitLimitOrder: crossing behavior.
+// - Try to match up to the limit price.
+// - If any size remains, rest it at the limit.
+func (ob *OrderBook) SubmitLimitOrder(o *Order) ([]Match, error) {
+	if o.Kind != OrderKindLimit {
+		return nil, errors.New("SubmitLimitOrder: order must be limit")
+	}
 
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
 
-	if o.Bid {
-		limit = ob.BidLimits[price]
-	} else {
-		limit = ob.AskLimits[price]
+	if _, exists := ob.orders[o.ID]; exists {
+		return nil, errors.New("SubmitLimitOrder: duplicate order ID")
 	}
 
-	if limit == nil {
-		limit = NewLimit(price)
+	// crossing part
+	limit := o.Price
+	matches := ob.matchOrderLocked(o, &limit)
 
-		if o.Bid {
-			ob.bids = append(ob.bids, limit)
-			ob.BidLimits[price] = limit
-		} else {
-			ob.asks = append(ob.asks, limit)
-			ob.AskLimits[price] = limit
-		}
+	// rest any leftover size
+	if !o.IsFilled() {
+		side := ob.sideFor(o.Side)
+		side.addRestingOrder(o)
+		ob.orders[o.ID] = o
 	}
 
-	// TODO: add logging
-
-	ob.Orders[o.ID] = o
-	limit.AddOrder(o)
+	return matches, nil
 }
 
-func (ob *Orderbook) clearLimit(bid bool, l *Limit) {
-	if bid {
-		delete(ob.BidLimits, l.Price)
-		for i := 0; i < len(ob.bids); i++ {
-			if ob.bids[i] == l {
-				ob.bids[i] = ob.bids[len(ob.bids)-1]
-				ob.bids = ob.bids[:len(ob.bids)-1]
+// SubmitMarketOrder: match only, never rest.
+func (ob *OrderBook) SubmitMarketOrder(o *Order) ([]Match, error) {
+	if o.Kind != OrderKindMarket {
+		return nil, errors.New("SubmitMarketOrder: order must be market")
+	}
+
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
+	if _, exists := ob.orders[o.ID]; exists {
+		return nil, errors.New("SubmitMarketOrder: duplicate order ID")
+	}
+
+	matches := ob.matchOrderLocked(o, nil)
+	// market orders never go into orders map; they are either filled or left partially unfilled
+	return matches, nil
+}
+
+// CancelOrder by ID. Returns true if something was canceled.
+func (ob *OrderBook) CancelOrder(id int64) bool {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
+	o, ok := ob.orders[id]
+	if !ok {
+		return false
+	}
+	side := ob.sideFor(o.Side)
+	side.cancelRestingOrder(o)
+	delete(ob.orders, id)
+	return true
+}
+
+// BestBid returns (price, size, ok)
+func (ob *OrderBook) BestBid() (float64, float64, bool) {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+
+	l := ob.bids.bestLevel()
+	if l == nil {
+		return 0, 0, false
+	}
+	return l.Price, l.TotalVolume, true
+}
+
+// BestAsk returns (price, size, ok)
+func (ob *OrderBook) BestAsk() (float64, float64, bool) {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+
+	l := ob.asks.bestLevel()
+	if l == nil {
+		return 0, 0, false
+	}
+	return l.Price, l.TotalVolume, true
+}
+
+// Snapshot of bids (best to worst)
+type BookLevel struct {
+	Price float64
+	Size  float64
+}
+
+// BidsSnapshot returns a snapshot of all bid levels sorted best to worst.
+func (ob *OrderBook) BidsSnapshot() []BookLevel {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+
+	// copy heap data and sort manually (we don't mutate book heap)
+	hdata := make([]*level, len(ob.bids.lheap.data))
+	copy(hdata, ob.bids.lheap.data)
+
+	// simple sort: highest price first
+	// for a real system you might want a more efficient approach,
+	// but this is only for inspection, not on the hot path.
+	for i := 0; i < len(hdata); i++ {
+		for j := i + 1; j < len(hdata); j++ {
+			if hdata[j].Price > hdata[i].Price {
+				hdata[i], hdata[j] = hdata[j], hdata[i]
 			}
 		}
-	} else {
-		delete(ob.AskLimits, l.Price)
-		for i := 0; i < len(ob.asks); i++ {
-			if ob.asks[i] == l {
-				ob.asks[i] = ob.asks[len(ob.asks)-1]
-				ob.asks = ob.asks[:len(ob.asks)-1]
+	}
+
+	out := make([]BookLevel, len(hdata))
+	for i, l := range hdata {
+		out[i] = BookLevel{Price: l.Price, Size: l.TotalVolume}
+	}
+	return out
+}
+
+// AsksSnapshot returns a snapshot of all ask levels sorted best to worst (lowest to highest).
+func (ob *OrderBook) AsksSnapshot() []BookLevel {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+
+	hdata := make([]*level, len(ob.asks.lheap.data))
+	copy(hdata, ob.asks.lheap.data)
+
+	// simple sort: lowest price first
+	for i := 0; i < len(hdata); i++ {
+		for j := i + 1; j < len(hdata); j++ {
+			if hdata[j].Price < hdata[i].Price {
+				hdata[i], hdata[j] = hdata[j], hdata[i]
 			}
 		}
 	}
 
-	fmt.Printf("clearing limit price level [%.2f]\n", l.Price)
-}
-
-func (ob *Orderbook) CancelOrder(o *Order) {
-	limit := o.Limit
-	limit.DeleteOrder(o)
-	delete(ob.Orders, o.ID)
-
-	if len(limit.Orders) == 0 {
-		ob.clearLimit(o.Bid, limit)
+	out := make([]BookLevel, len(hdata))
+	for i, l := range hdata {
+		out[i] = BookLevel{Price: l.Price, Size: l.TotalVolume}
 	}
+	return out
 }
 
-func (ob *Orderbook) BidTotalVolume() float64 {
-	totalVolume := 0.0
+// -----------------------------------------------------------------------------
+// Internal helpers (protected by ob.mu)
+// -----------------------------------------------------------------------------
 
-	for i := 0; i < len(ob.bids); i++ {
-		totalVolume += ob.bids[i].TotalVolume
+func (ob *OrderBook) sideFor(s Side) *bookSide {
+	if s == SideBuy {
+		return ob.bids
 	}
-	return totalVolume
-}
-
-func (ob *Orderbook) AskTotalVolume() float64 {
-	totalVolume := 0.0
-
-	for i := 0; i < len(ob.asks); i++ {
-		totalVolume += ob.asks[i].TotalVolume
-	}
-	return totalVolume
-}
-
-// Sorts by best ask price.
-func (ob *Orderbook) Asks() []*Limit {
-	sort.Sort(ByBestAsk{ob.asks})
 	return ob.asks
 }
 
-// Sorts by best bid price.
-func (ob *Orderbook) Bids() []*Limit {
-	sort.Sort(ByBestBid{ob.bids})
-	return ob.bids
+// matchOrderLocked matches an incoming order against the opposite side.
+// limitPrice == nil => true market order (no price limit).
+// limitPrice != nil => only match while best opposite price is acceptable.
+// Assumes ob.mu is held.
+func (ob *OrderBook) matchOrderLocked(o *Order, limitPrice *float64) []Match {
+	var matches []Match
+
+	opp := ob.asks
+	if o.Side == SideSell {
+		opp = ob.bids
+	}
+
+	for o.Size > 0 {
+		best := opp.bestLevel()
+		if best == nil {
+			break
+		}
+
+		// limit price checks
+		if limitPrice != nil {
+			switch o.Side {
+			case SideBuy:
+				// buy limit: best ask must be <= limit
+				if best.Price > *limitPrice {
+					return matches
+				}
+			case SideSell:
+				// sell limit: best bid must be >= limit
+				if best.Price < *limitPrice {
+					return matches
+				}
+			}
+		}
+
+		// consume orders at this best level
+		for o.Size > 0 && best.head != nil {
+			maker := best.head
+
+			traded := o.Size
+			if maker.Size < traded {
+				traded = maker.Size
+			}
+			if traded <= 0 {
+				// should not happen, but guard against infinite loops
+				best.popHead()
+				continue
+			}
+
+			o.Size -= traded
+			maker.Size -= traded
+			best.TotalVolume -= traded
+
+			match := Match{
+				Price:      best.Price,
+				SizeFilled: traded,
+			}
+			if o.Side == SideBuy {
+				match.Bid = o
+				match.Ask = maker
+			} else {
+				match.Bid = maker
+				match.Ask = o
+			}
+			matches = append(matches, match)
+
+			// record trade
+			ob.trades = append(ob.trades, &Trade{
+				Price:     match.Price,
+				Size:      match.SizeFilled,
+				TakerSide: o.Side,
+				Time:      now(),
+			})
+
+			if maker.IsFilled() {
+				// maker fully consumed: remove from FIFO and orders map
+				best.popHead()
+				delete(ob.orders, maker.ID)
+			} else {
+				// taker must be fully filled if maker not, because traded = min
+				// if maker still has size, o.Size must be zero
+				if o.IsFilled() {
+					break
+				}
+			}
+		}
+
+		if best.TotalVolume <= 0 || best.head == nil {
+			opp.removeLevel(best)
+		}
+
+		if o.IsFilled() {
+			break
+		}
+	}
+
+	return matches
+}
+
+// -----------------------------------------------------------------------------
+// Access to trades (optional)
+// -----------------------------------------------------------------------------
+
+func (ob *OrderBook) Trades() []*Trade {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+
+	out := make([]*Trade, len(ob.trades))
+	copy(out, ob.trades)
+	return out
 }
