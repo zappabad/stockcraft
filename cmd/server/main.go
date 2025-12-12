@@ -10,11 +10,13 @@ import (
 )
 
 func main() {
+	var tickers []engine.Ticker = []engine.Ticker{"AAPL", "GOOGL", "NVDA", "BAR", "FOO", "BAZ"}
+
 	// 1. Create a basic market.
-	market := engine.NewMarket()
+	market := engine.NewMarket(tickers)
 
 	// 2. Create an order book.
-	orderBook := engine.NewOrderBook()
+	orderBook := engine.NewOrderbook()
 
 	// 3. Create some traders.
 	// TODO: Replace these with real strategy types (frequent, swing, news-based).
@@ -40,5 +42,5 @@ func main() {
 
 	// 5. Run for a few ticks and watch console output.
 	// TODO: Make this configurable via flags or environment.
-	sim.Run(100)
+	sim.Run(0, 20)
 }

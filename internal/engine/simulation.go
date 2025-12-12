@@ -1,15 +1,21 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Simulation stitches together Market, Traders, and Orderbook.
 // This is where your "game loop" lives.
-type Simulation struct {
-	Market     Market
-	Traders    []Trader
-	NewsEngine *NewsEngine
-	TickCount  int
-}
+type (
+	Simulation struct {
+		Market     Market
+		Traders    []Trader
+		NewsEngine *NewsEngine
+		TickCount  int
+	}
+
+)
 
 // NewSimulation wires up a new Simulation.
 func NewSimulation(m Market, traders []Trader, ne *NewsEngine) *Simulation {
@@ -28,7 +34,7 @@ func (s *Simulation) Step() {
 	s.TickCount++
 	fmt.Printf("\n=== Tick %d ===\n", s.TickCount)
 
-	var allOrders []Order
+	var allOrders Orders
 
 	for _, t := range s.Traders {
 		orders := t.Tick(s.Market)
@@ -48,7 +54,7 @@ func (s *Simulation) Step() {
 		fmt.Printf("News: %s\n", news.Details.Headline)
 	}
 
-	s.Orderbook.AddOrders(allOrders)
+	s.Market.Orderbooks.AddOrders(allOrders)
 	// s.Orderbook.ApplyOrders(allOrders, &s.Market)
 
 	// Print a simple market snapshot to the console.
@@ -60,8 +66,15 @@ func (s *Simulation) Step() {
 
 // Run executes N ticks synchronously.
 // For the first prototype, this is fine; later you may want a real-time loop.
-func (s *Simulation) Run(ticks int) {
-	for i := 0; i < ticks; i++ {
-		s.Step()
-	}
+func (s *Simulation) Run(ticks int, tick_rate int) {
+	if ticks > 0 {
+		for i := 0; i < ticks; i++ {
+			time.Sleep(time.Duration(1000/tick_rate) * time.Millisecond)
+			s.Step()
+		}
+	} else {
+		for {
+			time.Sleep(time.Duration(1000/tick_rate) * time.Millisecond)
+			s.Step()
+		}
 }

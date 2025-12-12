@@ -6,7 +6,6 @@ import (
 )
 
 type (
-	TopicID  string
 	Headline string
 	Content  string
 
