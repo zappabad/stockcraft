@@ -13,6 +13,13 @@ func main() {
 		{Name: "AAPL", Decimals: 2},
 		{Name: "GOOGL", Decimals: 2},
 		{Name: "NVDA", Decimals: 2},
+		{Name: "AMZN", Decimals: 2},
+		{Name: "MSFT", Decimals: 2},
+		{Name: "TSLA", Decimals: 2},
+		{Name: "META", Decimals: 2},
+		{Name: "NFLX", Decimals: 2},
+		{Name: "BABA", Decimals: 2},
+		{Name: "INTC", Decimals: 2},
 	}
 
 	// 1. Create a basic market.

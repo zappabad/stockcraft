@@ -49,7 +49,7 @@ func (s *Simulation) Step() {
 	// Print a simple market snapshot to the console.
 	// TODO: Replace with structured logging or a UI later.
 	for symbol, price := range s.Market.Prices {
-		fmt.Printf("Price[%s] = %.2f\n", symbol, price)
+		fmt.Printf("Price[%s] = %d\n", symbol.Name, price)
 	}
 }
 

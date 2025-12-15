@@ -47,19 +47,20 @@ func (t *RandomTrader) Tick(m Market) (*Order, []Match, error) {
 
 	basePrice, err := m.GetPrice(random_ticker)
 	if err != nil {
-		log.Fatalf("failed to get price for ticker %s: %v", random_ticker, err)
+		log.Fatalf("failed to get price for ticker %s: %v", random_ticker.Name, err)
 	}
 
 	// Randomly nudge around current price.
-	price := basePrice * (0.95 + 0.1*t.seed.Float64()) // between 95% and 105%
-	qty := t.seed.Intn(10) + 1                         // 1–10 units
+	// price := basePrice * (0.95 + 0.1*t.seed.Float64()) // between 95% and 105%
+	price := basePrice
+	qty := int64(t.seed.Intn(10) + 1) // 1–10 units
 
 	side := SideBuy
 	if t.seed.Float64() < 0.5 {
 		side = SideSell
 	}
 
-	order := NewLimitOrder(1, t.ID(), side, price, float64(qty))
+	order := NewLimitOrder(1, t.ID(), side, price, Size(qty))
 	matches, _, err := orderbook.SubmitLimitOrder(order)
 	if err != nil {
 		log.Fatalf("failed to submit order: %v", err)

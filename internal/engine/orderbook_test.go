@@ -62,11 +62,11 @@ func TestLimitOrder_Crossing_BuyMatchesAskUpToLimit(t *testing.T) {
 func TestLimitOrder_Crossing_DoesNotMatchBeyondLimit(t *testing.T) {
 	ob := NewOrderBook()
 
-	mustSubmitLimit(t, ob, NewLimitOrder(1, 10, SideSell, 101, 1))
-	mustSubmitLimit(t, ob, NewLimitOrder(2, 10, SideSell, 103, 1))
+	mustSubmitLimit(t, ob, NewLimitOrder(1, 10, SideSell, PriceTicks(101), Size(1)))
+	mustSubmitLimit(t, ob, NewLimitOrder(2, 10, SideSell, PriceTicks(103), Size(1)))
 
 	// Buy limit at 102 should match 101 but stop before 103.
-	matches := mustSubmitLimit(t, ob, NewLimitOrder(3, 20, SideBuy, 102, 5))
+	matches := mustSubmitLimit(t, ob, NewLimitOrder(3, 20, SideBuy, PriceTicks(102), Size(5)))
 	if len(matches) != 1 {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}

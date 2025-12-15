@@ -61,9 +61,11 @@ func (ne *NewsEngine) GenerateNews(tick int) *News {
 	if tick%10 == 0 {
 		impact_sign := rand.Intn(3) - 1 // -1, 0, or +1
 		news := News{
-			ID:        int64(len(ne.newsItems) + 1),
-			Topic:     TopicID(fmt.Sprintf("Topic-%d", rand.Intn(5))),
-			Affected:  []Ticker{Ticker(fmt.Sprintf("SYM%d", rand.Intn(10)))},
+			ID:    int64(len(ne.newsItems) + 1),
+			Topic: TopicID(fmt.Sprintf("Topic-%d", rand.Intn(5))),
+			Affected: []Ticker{
+				{Name: fmt.Sprintf("SYM%d", rand.Intn(10)), Decimals: 2},
+			},
 			Timestamp: int64(tick),
 			Horizon:   int64(tick + rand.Intn(5) + 1),
 			Sentiment: float64(impact_sign),

@@ -3,6 +3,8 @@ package engine
 import (
 	"container/heap"
 	"errors"
+	"fmt"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -49,6 +51,14 @@ func (ok OrderKind) String() string {
 
 type PriceTicks int64
 type Size int64
+
+func (p *PriceTicks) String() string {
+	return strconv.FormatInt(int64(*p), 10)
+}
+
+func (s *Size) String() string {
+	return strconv.FormatInt(int64(*s), 10)
+}
 
 type Order struct {
 	ID     int64
@@ -318,7 +328,7 @@ func NewMarketOrder(id, userID int64, side Side, size Size) *Order {
 		UserID: userID,
 		Side:   side,
 		Kind:   OrderKindMarket,
-		Price:  0,
+		Price:  PriceTicks(0),
 		Size:   size,
 		Time:   now(),
 	}
@@ -339,8 +349,15 @@ func (ob *OrderBook) SubmitLimitOrder(o *Order) ([]Match, *Order, error) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
 
-	if _, exists := ob.orders[o.ID]; exists {
-		return nil, nil, errors.New("SubmitLimitOrder: duplicate order ID")
+	if existing, exists := ob.orders[o.ID]; exists {
+		return nil, nil, errors.New(
+			"SubmitLimitOrder: duplicate order ID=" +
+				fmt.Sprint(o.ID) +
+				" existing(user=" + fmt.Sprint(existing.UserID) +
+				" side=" + existing.Side.String() +
+				" price=" + fmt.Sprint(existing.Price) +
+				" size=" + fmt.Sprint(existing.Size) + ")",
+		)
 	}
 
 	// crossing part
