@@ -5,7 +5,11 @@ import (
 )
 
 type (
-	Ticker  string
+	Ticker struct {
+		Name     string
+		Decimals int8
+	}
+
 	TopicID string
 
 	Market struct {

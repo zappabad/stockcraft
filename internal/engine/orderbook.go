@@ -36,14 +36,28 @@ const (
 	OrderKindMarket
 )
 
+func (ok OrderKind) String() string {
+	switch ok {
+	case OrderKindLimit:
+		return "LIMIT"
+	case OrderKindMarket:
+		return "MARKET"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type PriceTicks int64
+type Size int64
+
 type Order struct {
 	ID     int64
 	UserID int64
 	Side   Side
 	Kind   OrderKind
-	Price  float64 // limit price (ignored for pure market)
-	Size   float64 // remaining size
-	Time   int64   // UnixNano
+	Price  PriceTicks
+	Size   Size
+	Time   int64 // UnixNano
 
 	// internal links for FIFO queue per level
 	level *level
@@ -58,13 +72,13 @@ func (o *Order) IsFilled() bool {
 type Match struct {
 	Bid        *Order
 	Ask        *Order
-	Price      float64
-	SizeFilled float64
+	Price      PriceTicks
+	SizeFilled Size
 }
 
 type Trade struct {
-	Price     float64
-	Size      float64
+	Price     PriceTicks
+	Size      Size
 	TakerSide Side
 	Time      int64
 }
@@ -74,9 +88,9 @@ type Trade struct {
 // -----------------------------------------------------------------------------
 
 type level struct {
-	Price       float64
+	Price       PriceTicks
 	head, tail  *Order
-	TotalVolume float64
+	TotalVolume Size
 }
 
 // append order at tail (does NOT change TotalVolume)
@@ -205,14 +219,14 @@ func (h *levelHeap) bestLevel() *level {
 
 type bookSide struct {
 	isBid  bool
-	levels map[float64]*level // price → level
+	levels map[PriceTicks]*level // price → level
 	lheap  *levelHeap
 }
 
 func newBookSide(isBid bool) *bookSide {
 	return &bookSide{
 		isBid:  isBid,
-		levels: make(map[float64]*level),
+		levels: make(map[PriceTicks]*level),
 		lheap:  newLevelHeap(isBid),
 	}
 }
@@ -221,7 +235,7 @@ func (bs *bookSide) bestLevel() *level {
 	return bs.lheap.bestLevel()
 }
 
-func (bs *bookSide) getOrCreateLevel(price float64) *level {
+func (bs *bookSide) getOrCreateLevel(price PriceTicks) *level {
 	if l, ok := bs.levels[price]; ok {
 		return l
 	}
@@ -286,7 +300,7 @@ func NewOrderBook() *OrderBook {
 
 func now() int64 { return time.Now().UnixNano() }
 
-func NewLimitOrder(id, userID int64, side Side, price, size float64) *Order {
+func NewLimitOrder(id, userID int64, side Side, price PriceTicks, size Size) *Order {
 	return &Order{
 		ID:     id,
 		UserID: userID,
@@ -298,7 +312,7 @@ func NewLimitOrder(id, userID int64, side Side, price, size float64) *Order {
 	}
 }
 
-func NewMarketOrder(id, userID int64, side Side, size float64) *Order {
+func NewMarketOrder(id, userID int64, side Side, size Size) *Order {
 	return &Order{
 		ID:     id,
 		UserID: userID,
@@ -377,7 +391,7 @@ func (ob *OrderBook) CancelOrder(id int64) bool {
 }
 
 // BestBid returns (price, size, ok)
-func (ob *OrderBook) BestBid() (float64, float64, bool) {
+func (ob *OrderBook) BestBid() (PriceTicks, Size, bool) {
 	ob.mu.RLock()
 	defer ob.mu.RUnlock()
 
@@ -389,7 +403,7 @@ func (ob *OrderBook) BestBid() (float64, float64, bool) {
 }
 
 // BestAsk returns (price, size, ok)
-func (ob *OrderBook) BestAsk() (float64, float64, bool) {
+func (ob *OrderBook) BestAsk() (PriceTicks, Size, bool) {
 	ob.mu.RLock()
 	defer ob.mu.RUnlock()
 
@@ -402,8 +416,8 @@ func (ob *OrderBook) BestAsk() (float64, float64, bool) {
 
 // Snapshot of bids (best to worst)
 type BookLevel struct {
-	Price float64
-	Size  float64
+	Price PriceTicks
+	Size  Size
 }
 
 // BidsSnapshot returns a snapshot of all bid levels sorted best to worst.
@@ -472,7 +486,7 @@ func (ob *OrderBook) sideFor(s Side) *bookSide {
 // limitPrice == nil => true market order (no price limit).
 // limitPrice != nil => only match while best opposite price is acceptable.
 // Assumes ob.mu is held.
-func (ob *OrderBook) matchOrderLocked(o *Order, limitPrice *float64) []Match {
+func (ob *OrderBook) matchOrderLocked(o *Order, limitPrice *PriceTicks) []Match {
 	var matches []Match
 
 	opp := ob.asks

@@ -59,8 +59,8 @@ func (t *RandomTrader) Tick(m Market) (*Order, []Match, error) {
 		side = SideSell
 	}
 
-	order := orderbook.NewLimitOrder(1, t.ID(), side, price, float64(qty))
-	matches, err := orderbook.SubmitLimitOrder(order)
+	order := NewLimitOrder(1, t.ID(), side, price, float64(qty))
+	matches, _, err := orderbook.SubmitLimitOrder(order)
 	if err != nil {
 		log.Fatalf("failed to submit order: %v", err)
 	}
