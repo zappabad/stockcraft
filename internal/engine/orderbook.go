@@ -317,16 +317,16 @@ func NewMarketOrder(id, userID int64, side Side, size float64) *Order {
 // SubmitLimitOrder: crossing behavior.
 // - Try to match up to the limit price.
 // - If any size remains, rest it at the limit.
-func (ob *OrderBook) SubmitLimitOrder(o *Order) ([]Match, error) {
+func (ob *OrderBook) SubmitLimitOrder(o *Order) ([]Match, *Order, error) {
 	if o.Kind != OrderKindLimit {
-		return nil, errors.New("SubmitLimitOrder: order must be limit")
+		return nil, nil, errors.New("SubmitLimitOrder: order must be limit")
 	}
 
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
 
 	if _, exists := ob.orders[o.ID]; exists {
-		return nil, errors.New("SubmitLimitOrder: duplicate order ID")
+		return nil, nil, errors.New("SubmitLimitOrder: duplicate order ID")
 	}
 
 	// crossing part
@@ -340,7 +340,7 @@ func (ob *OrderBook) SubmitLimitOrder(o *Order) ([]Match, error) {
 		ob.orders[o.ID] = o
 	}
 
-	return matches, nil
+	return matches, o, nil
 }
 
 // SubmitMarketOrder: match only, never rest.

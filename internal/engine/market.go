@@ -9,7 +9,7 @@ type (
 	TopicID string
 
 	Market struct {
-		Orderbooks map[Ticker]*Orderbook
+		Orderbooks map[Ticker]*OrderBook
 		Prices     map[Ticker]float64 // current market prices for each ticker
 		Tickers    []Ticker
 	}
@@ -18,13 +18,13 @@ type (
 // NewMarket creates a basic market by initializing Orderbooks for each ticker provided.
 func NewMarket(tickers []Ticker) Market {
 	market := Market{
-		Orderbooks: make(map[Ticker]*Orderbook),
+		Orderbooks: make(map[Ticker]*OrderBook),
 		Prices:     make(map[Ticker]float64),
 		Tickers:    tickers,
 	}
 
 	for _, t := range tickers {
-		market.Orderbooks[Ticker(t)] = NewOrderbook()
+		market.Orderbooks[Ticker(t)] = NewOrderBook()
 		market.Prices[Ticker(t)] = 0.01 // default starting price
 	}
 
@@ -46,7 +46,7 @@ func (m *Market) SetPrice(ticker Ticker, price float64) error {
 	return fmt.Errorf("cannot set price for unknown ticker %s", ticker)
 }
 
-func (m *Market) GetOrderbook(ticker Ticker) (*Orderbook, error) {
+func (m *Market) GetOrderbook(ticker Ticker) (*OrderBook, error) {
 	if ob, exists := m.Orderbooks[ticker]; exists {
 		return ob, nil
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -14,7 +15,6 @@ type (
 		NewsEngine *NewsEngine
 		TickCount  int
 	}
-
 )
 
 // NewSimulation wires up a new Simulation.
@@ -34,28 +34,17 @@ func (s *Simulation) Step() {
 	s.TickCount++
 	fmt.Printf("\n=== Tick %d ===\n", s.TickCount)
 
-	var allOrders Orders
-
 	for _, t := range s.Traders {
-		orders := t.Tick(s.Market)
-		if len(orders) == 0 {
-			continue
+		_, _, err := t.Tick(s.Market)
+		if err != nil {
+			log.Fatalf("Trader %d failed to tick: %v\n", t.ID(), err)
 		}
-		allOrders = append(allOrders, orders...)
-	}
-
-	if len(allOrders) == 0 {
-		fmt.Println("No orders this tick.")
-		return
 	}
 
 	news := s.NewsEngine.GenerateNews(s.TickCount)
 	if news != nil {
 		fmt.Printf("News: %s\n", news.Details.Headline)
 	}
-
-	s.Market.Orderbooks.AddOrders(allOrders)
-	// s.Orderbook.ApplyOrders(allOrders, &s.Market)
 
 	// Print a simple market snapshot to the console.
 	// TODO: Replace with structured logging or a UI later.
@@ -77,4 +66,5 @@ func (s *Simulation) Run(ticks int, tick_rate int) {
 			time.Sleep(time.Duration(1000/tick_rate) * time.Millisecond)
 			s.Step()
 		}
+	}
 }
