@@ -6,6 +6,7 @@ import (
 
 type (
 	Ticker struct {
+		ID       int64
 		Name     string
 		Decimals int8
 	}
@@ -29,17 +30,33 @@ func NewMarket(tickers []Ticker) Market {
 
 	for _, t := range tickers {
 		market.Orderbooks[Ticker(t)] = NewOrderBook()
-		market.Prices[Ticker(t)] = PriceTicks(1) // default starting price
+		market.Prices[Ticker(t)] = PriceTicks(1000) // default starting price
 	}
 
 	return market
 }
 
-func (m *Market) GetPrice(ticker Ticker) (PriceTicks, error) {
-	if price, exists := m.Prices[ticker]; exists {
-		return price, nil
+func (m *Market) GetOrderbook(ticker Ticker) (*OrderBook, error) {
+	if ob, exists := m.Orderbooks[ticker]; exists {
+		return ob, nil
 	}
-	return PriceTicks(0), fmt.Errorf("price not found for ticker %s", ticker.Name)
+	return nil, fmt.Errorf("orderbook not found for ticker %s", ticker.Name)
+}
+
+func (m *Market) GetPrice(ticker Ticker) (PriceTicks, error) {
+	orderbook, err := m.GetOrderbook(ticker)
+	if err != nil {
+		return PriceTicks(0), err
+	}
+
+	price, _, ok := orderbook.BestAsk()
+	if !ok {
+		return PriceTicks(0), fmt.Errorf("no best ask available for ticker %s", ticker.Name)
+	}
+	fmt.Printf("Best price: %d\n", price)
+	m.Prices[ticker] = price
+	fmt.Printf("Price %d\n", m.Prices[ticker])
+	return m.Prices[ticker], nil
 }
 
 func (m *Market) SetPrice(ticker Ticker, price PriceTicks) error {
@@ -48,13 +65,6 @@ func (m *Market) SetPrice(ticker Ticker, price PriceTicks) error {
 		return nil
 	}
 	return fmt.Errorf("cannot set price for unknown ticker %s", ticker.Name)
-}
-
-func (m *Market) GetOrderbook(ticker Ticker) (*OrderBook, error) {
-	if ob, exists := m.Orderbooks[ticker]; exists {
-		return ob, nil
-	}
-	return nil, fmt.Errorf("orderbook not found for ticker %s", ticker.Name)
 }
 
 func (m *Market) GetTickers() []Ticker {

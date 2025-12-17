@@ -308,11 +308,12 @@ func NewOrderBook() *OrderBook {
 // Order factories (for trader code)
 // -----------------------------------------------------------------------------
 
-func now() int64 { return time.Now().UnixNano() }
+func now() int64       { return time.Now().UnixNano() }
+func random_id() int64 { return time.Now().UnixNano() + int64(time.Now().Nanosecond()) }
 
-func NewLimitOrder(id, userID int64, side Side, price PriceTicks, size Size) *Order {
+func NewLimitOrder(userID int64, side Side, price PriceTicks, size Size) *Order {
 	return &Order{
-		ID:     id,
+		ID:     random_id(),
 		UserID: userID,
 		Side:   side,
 		Kind:   OrderKindLimit,
@@ -322,9 +323,9 @@ func NewLimitOrder(id, userID int64, side Side, price PriceTicks, size Size) *Or
 	}
 }
 
-func NewMarketOrder(id, userID int64, side Side, size Size) *Order {
+func NewMarketOrder(userID int64, side Side, size Size) *Order {
 	return &Order{
-		ID:     id,
+		ID:     random_id(),
 		UserID: userID,
 		Side:   side,
 		Kind:   OrderKindMarket,

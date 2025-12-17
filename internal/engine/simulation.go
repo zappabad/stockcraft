@@ -33,9 +33,8 @@ func NewSimulation(m Market, traders []Trader, ne *NewsEngine) *Simulation {
 func (s *Simulation) Step() {
 	s.TickCount++
 	fmt.Printf("\n=== Tick %d ===\n", s.TickCount)
-
 	for _, t := range s.Traders {
-		_, _, err := t.Tick(s.Market)
+		_, _, err := t.Tick(&s.Market)
 		if err != nil {
 			log.Fatalf("Trader %d failed to tick: %v\n", t.ID(), err)
 		}
@@ -45,11 +44,17 @@ func (s *Simulation) Step() {
 	if news != nil {
 		fmt.Printf("News: %s\n", news.Details.Headline)
 	}
-
+	fmt.Print("test")
 	// Print a simple market snapshot to the console.
 	// TODO: Replace with structured logging or a UI later.
-	for symbol, price := range s.Market.Prices {
-		fmt.Printf("Price[%s] = %d\n", symbol.Name, price)
+	tickers := s.Market.GetTickers()
+	fmt.Print("Tickers:\n%v", tickers)
+	for _, ticker := range tickers {
+		price, err := s.Market.GetPrice(ticker)
+		if err != nil {
+			log.Printf("Error getting price for ticker %s: %v\n", ticker.Name, err)
+		}
+		fmt.Printf("Price[%s] = %d\n", ticker.Name, price)
 	}
 }
 
