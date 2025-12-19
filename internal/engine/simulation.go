@@ -48,15 +48,15 @@ func (s *Simulation) Step() {
 	// Print a simple market snapshot to the console.
 	printMarketSnapshot(&s.Market)
 
-	// Inspect orderbooks (for debugging).
-	for _, ticker := range s.Market.GetTickers() {
-		orderbook, err := s.Market.GetOrderbook(ticker)
-		if err != nil {
-			log.Printf("Error getting orderbook for ticker %s: %v\n", ticker.Name, err)
-			continue
-		}
-		fmt.Printf("Orderbook for %s:\n%s\n", ticker.Name, orderbook.String())
-	}
+	// // Inspect orderbooks (for debugging).
+	// for _, ticker := range s.Market.GetTickers() {
+	// 	orderbook, err := s.Market.GetOrderbook(ticker)
+	// 	if err != nil {
+	// 		log.Printf("Error getting orderbook for ticker %s: %v\n", ticker.Name, err)
+	// 		continue
+	// 	}
+	// 	fmt.Printf("Orderbook for %s:\n%s\n", ticker.Name, orderbook.String())
+	// }
 
 }
 

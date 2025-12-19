@@ -48,5 +48,5 @@ func main() {
 
 	// 5. Run for a few ticks and watch console output.
 	// TODO: Make this configurable via flags or environment.
-	sim.Run(0, 1)
+	sim.Run(0, 20)
 }

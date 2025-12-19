@@ -28,7 +28,7 @@ func NewRandomTrader(id int64, symbols []string, seed *rand.Rand) *RandomTrader 
 	return &RandomTrader{
 		id:   id,
 		seed: seed,
-		zipf: rand.NewZipf(seed, 1.15, 3, 50), // s, v, imax (tune)
+		zipf: rand.NewZipf(seed, 1.15, 3, 20), // s, v, imax (tune)
 	}
 }
 
@@ -70,7 +70,7 @@ func (t *RandomTrader) Tick(tick_n int, m *Market) (*Order, []Match, error) {
 		side = SideSell
 	}
 	// Randomly nudge around current price.
-	delta := PriceTicks(t.seed.Intn(11)) // 0..10 ticks
+	delta := PriceTicks(t.seed.Intn(2)) // 0..1 ticks
 	if side == SideBuy {
 		price = basePrice - delta
 	} else {
