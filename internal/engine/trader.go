@@ -44,15 +44,14 @@ func (t *RandomTrader) Tick(m *Market) (*Order, []Match, error) {
 	}
 
 	random_ticker := m.GetTickers()[t.seed.Intn(len(m.GetTickers()))]
-	fmt.Printf("Trader %d selected ticker %s\n", t.id, random_ticker.Name)
+
 	orderbook, err := m.GetOrderbook(random_ticker)
-	fmt.Printf("Orderbook: %v\n", orderbook)
+
 	if err != nil {
 		log.Fatalf("failed to get orderbook for ticker %s: %v", random_ticker.Name, err)
 	}
 
 	basePrice, err := m.GetPrice(random_ticker)
-	fmt.Printf("Base Price: %d\n", basePrice)
 	if err != nil {
 		log.Fatalf("failed to get price for ticker %s: %v", random_ticker.Name, err)
 	}
@@ -61,16 +60,22 @@ func (t *RandomTrader) Tick(m *Market) (*Order, []Match, error) {
 	delta := int64(95 + t.seed.Intn(11))   // between 0 and 10
 	price := basePrice - PriceTicks(delta) // between 95% and 105%
 	qty := int64(t.seed.Intn(10) + 1)      // 1–10 units
-	fmt.Printf("Trader %d placing order for %s at price %d qty %d\n", t.id, random_ticker.Name, price, qty)
 
 	side := SideBuy
 	if t.seed.Float64() < 0.5 {
 		side = SideSell
 	}
+	if side == SideSell {
+		price = basePrice + PriceTicks(delta) // between 105% and 115%
+	} else {
+		price = basePrice - PriceTicks(delta) // between 85% and 95%
+	}
+
+	// Print order placed with side (bid or ask), ticker, price, qty
+	fmt.Printf("Trader %d placing %s order: Ticker=%s Price=%d Qty=%d\n", t.ID(), side.String(), random_ticker.Name, price, qty)
 
 	order := NewLimitOrder(t.ID(), side, price, Size(qty))
 	matches, _, err := orderbook.SubmitLimitOrder(order)
-	fmt.Printf("%v\n", matches)
 	if err != nil {
 		log.Fatalf("failed to submit order: %v", err)
 	}

@@ -44,11 +44,11 @@ func (s *Simulation) Step() {
 	if news != nil {
 		fmt.Printf("News: %s\n", news.Details.Headline)
 	}
-	fmt.Print("test")
+
 	// Print a simple market snapshot to the console.
 	// TODO: Replace with structured logging or a UI later.
 	tickers := s.Market.GetTickers()
-	fmt.Print("Tickers:\n%v", tickers)
+
 	for _, ticker := range tickers {
 		price, err := s.Market.GetPrice(ticker)
 		if err != nil {

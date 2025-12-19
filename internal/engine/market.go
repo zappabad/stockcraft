@@ -51,11 +51,10 @@ func (m *Market) GetPrice(ticker Ticker) (PriceTicks, error) {
 
 	price, _, ok := orderbook.BestAsk()
 	if !ok {
-		return PriceTicks(0), fmt.Errorf("no best ask available for ticker %s", ticker.Name)
+		return PriceTicks(0), nil // No asks; price is undefined.
 	}
-	fmt.Printf("Best price: %d\n", price)
+
 	m.Prices[ticker] = price
-	fmt.Printf("Price %d\n", m.Prices[ticker])
 	return m.Prices[ticker], nil
 }
 
