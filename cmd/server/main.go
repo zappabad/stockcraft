@@ -40,7 +40,7 @@ func main() {
 		log.Fatal("no traders configured")
 	}
 
-	// 4. Generate News Engine
+	// 43. Generate News Engine
 	newsEngine := engine.NewNewsEngine()
 
 	// 4. Wire everything into a simulation.
