@@ -11,7 +11,7 @@ import (
 // Trader returns zero or more Orders it wants to place at this tick.
 type Trader interface {
 	ID() int64
-	Tick(m *Market) (*Order, []Match, error)
+	Tick(tick_n int, m *Market) (*Order, []Match, error)
 }
 
 // RandomTrader is a dumb placeholder implementation.
@@ -19,6 +19,7 @@ type Trader interface {
 type RandomTrader struct {
 	id   int64
 	seed *rand.Rand
+	zipf *rand.Zipf
 }
 
 // NewRandomTrader constructs a simple random trader.
@@ -27,6 +28,7 @@ func NewRandomTrader(id int64, symbols []string, seed *rand.Rand) *RandomTrader 
 	return &RandomTrader{
 		id:   id,
 		seed: seed,
+		zipf: rand.NewZipf(seed, 1.15, 3, 50), // s, v, imax (tune)
 	}
 }
 
@@ -36,7 +38,7 @@ func (t *RandomTrader) ID() int64 {
 
 // Tick generates 0 or 1 random order per tick.
 // This is intentionally stupid; it's just to show the wiring.
-func (t *RandomTrader) Tick(m *Market) (*Order, []Match, error) {
+func (t *RandomTrader) Tick(tick_n int, m *Market) (*Order, []Match, error) {
 
 	// 50% chance to do nothing.
 	if t.seed.Float64() < 0.5 {
@@ -51,28 +53,29 @@ func (t *RandomTrader) Tick(m *Market) (*Order, []Match, error) {
 		log.Fatalf("failed to get orderbook for ticker %s: %v", random_ticker.Name, err)
 	}
 
-	basePrice, err := m.GetPrice(random_ticker)
+	basePrice, ok, err := m.GetPrice(random_ticker)
 	if err != nil {
 		log.Fatalf("failed to get price for ticker %s: %v", random_ticker.Name, err)
 	}
+	if !ok { // No price yet; use a fake base price.
+		fmt.Printf("No price for ticker %s; using base price.\n", random_ticker.Name)
+		basePrice = PriceTicks(100)
+	}
 
-	// Randomly nudge around current price.
-	delta := int64(95 + t.seed.Intn(11))   // between 0 and 10
-	price := basePrice - PriceTicks(delta) // between 95% and 105%
-	qty := int64(t.seed.Intn(10) + 1)      // 1–10 units
+	var price PriceTicks
+	qty := int64(t.zipf.Uint64() + 1)
 
 	side := SideBuy
 	if t.seed.Float64() < 0.5 {
 		side = SideSell
 	}
-	if side == SideSell {
-		price = basePrice + PriceTicks(delta) // between 105% and 115%
+	// Randomly nudge around current price.
+	delta := PriceTicks(t.seed.Intn(11)) // 0..10 ticks
+	if side == SideBuy {
+		price = basePrice - delta
 	} else {
-		price = basePrice - PriceTicks(delta) // between 85% and 95%
+		price = basePrice + delta
 	}
-
-	// Print order placed with side (bid or ask), ticker, price, qty
-	fmt.Printf("Trader %d placing %s order: Ticker=%s Price=%d Qty=%d\n", t.ID(), side.String(), random_ticker.Name, price, qty)
 
 	order := NewLimitOrder(t.ID(), side, price, Size(qty))
 	matches, _, err := orderbook.SubmitLimitOrder(order)

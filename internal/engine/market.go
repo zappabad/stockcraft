@@ -30,7 +30,6 @@ func NewMarket(tickers []Ticker) Market {
 
 	for _, t := range tickers {
 		market.Orderbooks[Ticker(t)] = NewOrderBook()
-		market.Prices[Ticker(t)] = PriceTicks(1000) // default starting price
 	}
 
 	return market
@@ -43,27 +42,22 @@ func (m *Market) GetOrderbook(ticker Ticker) (*OrderBook, error) {
 	return nil, fmt.Errorf("orderbook not found for ticker %s", ticker.Name)
 }
 
-func (m *Market) GetPrice(ticker Ticker) (PriceTicks, error) {
+// Returns best ask price for the ticker, an ok flag indicating if price exists, and error if any.
+func (m *Market) GetPrice(ticker Ticker) (PriceTicks, bool, error) {
 	orderbook, err := m.GetOrderbook(ticker)
 	if err != nil {
-		return PriceTicks(0), err
+		return 0, false, err
 	}
 
 	price, _, ok := orderbook.BestAsk()
 	if !ok {
-		return PriceTicks(0), nil // No asks; price is undefined.
+		// Not an error: just no asks right now.
+		return 0, false, nil
 	}
 
+	// TODO: If Market is used concurrently, this map write needs a mutex.
 	m.Prices[ticker] = price
-	return m.Prices[ticker], nil
-}
-
-func (m *Market) SetPrice(ticker Ticker, price PriceTicks) error {
-	if _, exists := m.Prices[ticker]; exists {
-		m.Prices[ticker] = price
-		return nil
-	}
-	return fmt.Errorf("cannot set price for unknown ticker %s", ticker.Name)
+	return price, true, nil
 }
 
 func (m *Market) GetTickers() []Ticker {

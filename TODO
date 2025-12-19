@@ -1,1 +1,2 @@
-add a Ticker type to every Orderbook and order in orderbook.go
+* orderbooks get easily filled with stable prices because traders keep using the
+  orderbook price, leading to stale markets with no price fluctuation

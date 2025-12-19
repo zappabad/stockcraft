@@ -34,7 +34,7 @@ func (s *Simulation) Step() {
 	s.TickCount++
 	fmt.Printf("\n=== Tick %d ===\n", s.TickCount)
 	for _, t := range s.Traders {
-		_, _, err := t.Tick(&s.Market)
+		_, _, err := t.Tick(s.TickCount, &s.Market)
 		if err != nil {
 			log.Fatalf("Trader %d failed to tick: %v\n", t.ID(), err)
 		}
@@ -46,15 +46,33 @@ func (s *Simulation) Step() {
 	}
 
 	// Print a simple market snapshot to the console.
-	// TODO: Replace with structured logging or a UI later.
-	tickers := s.Market.GetTickers()
+	printMarketSnapshot(&s.Market)
 
+	// Inspect orderbooks (for debugging).
+	for _, ticker := range s.Market.GetTickers() {
+		orderbook, err := s.Market.GetOrderbook(ticker)
+		if err != nil {
+			log.Printf("Error getting orderbook for ticker %s: %v\n", ticker.Name, err)
+			continue
+		}
+		fmt.Printf("Orderbook for %s:\n%s\n", ticker.Name, orderbook.String())
+	}
+
+}
+
+func printMarketSnapshot(m *Market) {
+	tickers := m.GetTickers()
 	for _, ticker := range tickers {
-		price, err := s.Market.GetPrice(ticker)
+		price, ok, err := m.GetPrice(ticker)
 		if err != nil {
 			log.Printf("Error getting price for ticker %s: %v\n", ticker.Name, err)
+			continue
 		}
-		fmt.Printf("Price[%s] = %d\n", ticker.Name, price)
+		if ok {
+			fmt.Printf("Ticker: %s, Price: %d\n", ticker.Name, price)
+		} else {
+			fmt.Printf("Ticker: %s, Price: N/A\n", ticker.Name)
+		}
 	}
 }
 

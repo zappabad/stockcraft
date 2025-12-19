@@ -304,6 +304,23 @@ func NewOrderBook() *OrderBook {
 	}
 }
 
+func (ob *OrderBook) String() string {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+
+	result := "BIDS:\n"
+	bidLevels := ob.BidsSnapshot()
+	for _, bl := range bidLevels {
+		result += fmt.Sprintf("  Price: %s, Size: %s\n", bl.Price.String(), bl.Size.String())
+	}
+	result += "ASKS:\n"
+	askLevels := ob.AsksSnapshot()
+	for _, al := range askLevels {
+		result += fmt.Sprintf("  Price: %s, Size: %s\n", al.Price.String(), al.Size.String())
+	}
+	return result
+}
+
 // -----------------------------------------------------------------------------
 // Order factories (for trader code)
 // -----------------------------------------------------------------------------
