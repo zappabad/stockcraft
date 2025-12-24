@@ -1,7 +1,5 @@
 package ui
 
-import "github.com/zappabad/stockcraft/internal/engine"
-
 // UIChannelPublisher implements the engine.UIPublisher interface
 type UIChannelPublisher struct {
 	channels *UIChannels

@@ -9,8 +9,6 @@ import (
 	"log"
 	"math/rand"
 
-	"github.com/zappabad/stockcraft/internal/engine"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -156,13 +154,13 @@ func main() {
 		{ID: 1, Name: "AAPL", Decimals: 2},
 		{ID: 2, Name: "GOOGL", Decimals: 2},
 		{ID: 3, Name: "NVDA", Decimals: 2},
-		{ID: 4, Name: "AMZN", Decimals: 2},
-		{ID: 5, Name: "MSFT", Decimals: 2},
-		{ID: 6, Name: "TSLA", Decimals: 2},
-		{ID: 7, Name: "META", Decimals: 2},
-		{ID: 8, Name: "NFLX", Decimals: 2},
-		{ID: 9, Name: "BABA", Decimals: 2},
-		{ID: 10, Name: "INTC", Decimals: 2},
+		// {ID: 4, Name: "AMZN", Decimals: 2},
+		// {ID: 5, Name: "MSFT", Decimals: 2},
+		// {ID: 6, Name: "TSLA", Decimals: 2},
+		// {ID: 7, Name: "META", Decimals: 2},
+		// {ID: 8, Name: "NFLX", Decimals: 2},
+		// {ID: 9, Name: "BABA", Decimals: 2},
+		// {ID: 10, Name: "INTC", Decimals: 2},
 	}
 
 	// 1. Create a basic market.

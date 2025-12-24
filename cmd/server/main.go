@@ -4,7 +4,6 @@ import (
 	"log"
 	"math/rand"
 
-	// Replace "yourmodule" with the module path from your go.mod.
 	"github.com/zappabad/stockcraft/internal/engine"
 )
 
@@ -13,13 +12,13 @@ func main() {
 		{ID: 1, Name: "AAPL", Decimals: 2},
 		{ID: 2, Name: "GOOGL", Decimals: 2},
 		{ID: 3, Name: "NVDA", Decimals: 2},
-		{ID: 4, Name: "AMZN", Decimals: 2},
-		{ID: 5, Name: "MSFT", Decimals: 2},
-		{ID: 6, Name: "TSLA", Decimals: 2},
-		{ID: 7, Name: "META", Decimals: 2},
-		{ID: 8, Name: "NFLX", Decimals: 2},
-		{ID: 9, Name: "BABA", Decimals: 2},
-		{ID: 10, Name: "INTC", Decimals: 2},
+		// {ID: 4, Name: "AMZN", Decimals: 2},
+		// {ID: 5, Name: "MSFT", Decimals: 2},
+		// {ID: 6, Name: "TSLA", Decimals: 2},
+		// {ID: 7, Name: "META", Decimals: 2},
+		// {ID: 8, Name: "NFLX", Decimals: 2},
+		// {ID: 9, Name: "BABA", Decimals: 2},
+		// {ID: 10, Name: "INTC", Decimals: 2},
 	}
 
 	// 1. Create a basic market.
@@ -32,7 +31,7 @@ func main() {
 
 	for i := range total_traders {
 		traderSeed := rand.New(rand.NewSource(int64(i + 69420)))
-		traders = append(traders, engine.NewRandomTrader(i, []string{"BAR"}, traderSeed))
+		traders = append(traders, engine.NewRandomTrader(i, tickers, traderSeed))
 	}
 
 	// Simple sanity check: ensure we have at least one trader.

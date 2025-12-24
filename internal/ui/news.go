@@ -76,7 +76,7 @@ func (w *NewsWidget) Render(width, height int) string {
 
 			// Check if we have space for this news item
 			itemLines := 1 // headline
-			if len(news.SymbolImpacts) > 0 {
+			if len(news.Magnitude) > 0 {
 				itemLines++ // impact line
 			}
 			if i > 0 {

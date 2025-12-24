@@ -22,8 +22,8 @@ func NewOrderBookWidget() *OrderBookWidget {
 		BaseWidget:   NewBaseWidget(),
 		recentOrders: make([]engine.Order, 0),
 		lastTick:     0,
-		maxOrders:    15,    // Keep last 15 orders
-		filterSymbol: "FOO", // Default to FOO
+		maxOrders:    15,     // Keep last 15 orders
+		filterSymbol: "AAPL", // Default to FOO
 	}
 }
 

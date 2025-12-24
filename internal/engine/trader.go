@@ -17,18 +17,20 @@ type Trader interface {
 // RandomTrader is a dumb placeholder implementation.
 // It demonstrates the flow without any real strategy.
 type RandomTrader struct {
-	id   int64
-	seed *rand.Rand
-	zipf *rand.Zipf
+	id      int64
+	seed    *rand.Rand
+	zipf    *rand.Zipf
+	tickers []Ticker
 }
 
 // NewRandomTrader constructs a simple random trader.
 // TODO: Replace this with more interesting strategies (frequent, swing, news-based, etc.).
-func NewRandomTrader(id int64, symbols []string, seed *rand.Rand) *RandomTrader {
+func NewRandomTrader(id int64, tickers []Ticker, seed *rand.Rand) *RandomTrader {
 	return &RandomTrader{
-		id:   id,
-		seed: seed,
-		zipf: rand.NewZipf(seed, 1.15, 3, 20), // s, v, imax (tune)
+		id:      id,
+		seed:    seed,
+		zipf:    rand.NewZipf(seed, 1.15, 3, 20), // s, v, imax (tune)
+		tickers: tickers,
 	}
 }
 
@@ -45,7 +47,8 @@ func (t *RandomTrader) Tick(tick_n int, m *Market) (*Order, []Match, error) {
 		return nil, nil, nil
 	}
 
-	random_ticker := m.GetTickers()[t.seed.Intn(len(m.GetTickers()))]
+	// random_ticker := m.GetTickers()[t.seed.Intn(len(m.GetTickers()))]
+	random_ticker := t.tickers[t.seed.Intn(len(t.tickers))]
 
 	orderbook, err := m.GetOrderbook(random_ticker)
 
@@ -63,14 +66,14 @@ func (t *RandomTrader) Tick(tick_n int, m *Market) (*Order, []Match, error) {
 	}
 
 	var price PriceTicks
-	qty := int64(t.zipf.Uint64() + 1)
+	qty := int64(1)
 
 	side := SideBuy
 	if t.seed.Float64() < 0.5 {
 		side = SideSell
 	}
 	// Randomly nudge around current price.
-	delta := PriceTicks(t.seed.Intn(2)) // 0..1 ticks
+	delta := PriceTicks(5 * t.seed.Intn(2)) // 0..1 ticks
 	if side == SideBuy {
 		price = basePrice - delta
 	} else {
@@ -78,7 +81,7 @@ func (t *RandomTrader) Tick(tick_n int, m *Market) (*Order, []Match, error) {
 	}
 
 	order := NewLimitOrder(t.ID(), side, price, Size(qty))
-	matches, _, err := orderbook.SubmitLimitOrder(order)
+	matches, _, err := engine.SubmitLimitOrder(order)
 	if err != nil {
 		log.Fatalf("failed to submit order: %v", err)
 	}

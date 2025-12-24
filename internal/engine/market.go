@@ -5,13 +5,13 @@ import (
 )
 
 type (
+	TopicID string
+
 	Ticker struct {
 		ID       int64
 		Name     string
 		Decimals int8
 	}
-
-	TopicID string
 
 	Market struct {
 		Orderbooks map[Ticker]*OrderBook
@@ -49,7 +49,7 @@ func (m *Market) GetPrice(ticker Ticker) (PriceTicks, bool, error) {
 		return 0, false, err
 	}
 
-	price, _, ok := orderbook.BestAsk()
+	price, _, ok := engine.BestAsk()
 	if !ok {
 		// Not an error: just no asks right now.
 		return 0, false, nil
